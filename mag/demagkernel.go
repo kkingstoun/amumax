@@ -22,7 +22,7 @@ func DemagKernel(inputSize, pbc [3]int, cellsize [3]float64, accuracy float64, c
 	timer.Start("kernel_init")
 	defer timer.Stop("kernel_init")
 
-	sanityCheck(cellsize, pbc)
+	sanityCheck(cellsize)
 	// Cache disabled
 	if cacheDir == "" {
 		util.Log(`Kernel cache disabled.`)
@@ -152,7 +152,6 @@ func CalcDemagKernel(inputSize, pbc [3]int, cellsize [3]float64, accuracy float6
 	progress, progmax := 0, (1+(r2[Y]-r1[Y]))*(1+(r2[Z]-r1[Z])) // progress bar
 	done := make(chan struct{}, 3)                              // parallel calculation of one component done?
 
-	util.Log("progress bar kernel")
 	ProgressBar := zarr.ProgressBar{}
 	ProgressBar.New(0, float64(progmax), showMagnets)
 	// Start brute integration
@@ -388,7 +387,7 @@ func wrap(number, max int) int {
 
 const maxAspect = 100.0 // maximum sane cell aspect ratio
 
-func sanityCheck(cellsize [3]float64, pbc [3]int) {
+func sanityCheck(cellsize [3]float64) {
 	a3 := cellsize[X] / cellsize[Y]
 	a2 := cellsize[Y] / cellsize[Z]
 	a1 := cellsize[Z] / cellsize[X]
