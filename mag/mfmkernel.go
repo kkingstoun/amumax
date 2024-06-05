@@ -15,14 +15,14 @@ func MFMKernel(mesh *d.Mesh, lift, tipsize float64, cacheDir string) (kernel [3]
 
 	// Cache disabled
 	if cacheDir == "" {
-		util.Log(`//Not using kernel cache (-cache="")`)
+		util.Log(`Not using kernel cache (-cache="")`)
 		return CalcMFMKernel(mesh, lift, tipsize)
 	}
 
 	// Error-resilient kernel cache: if anything goes wrong, return calculated kernel.
 	defer func() {
 		if err := recover(); err != nil {
-			util.Log("//Unable to use kernel cache:", err)
+			util.Log("Unable to use kernel cache:", err)
 			kernel = CalcMFMKernel(mesh, lift, tipsize)
 		}
 	}()
@@ -37,9 +37,9 @@ func MFMKernel(mesh *d.Mesh, lift, tipsize float64, cacheDir string) (kernel [3]
 		}
 	}
 	if errLoad != nil {
-		util.Log("//Did not use cached kernel:", errLoad)
+		util.Log("Did not use cached kernel:", errLoad)
 	} else {
-		util.Log("//Using cached kernel:", basename)
+		util.Log("Using cached kernel:", basename)
 		return kernel
 	}
 
@@ -56,9 +56,9 @@ func MFMKernel(mesh *d.Mesh, lift, tipsize float64, cacheDir string) (kernel [3]
 		}
 	}
 	if errSave != nil {
-		util.Log("//Failed to cache kernel:", errSave)
+		util.Log("Failed to cache kernel:", errSave)
 	} else {
-		util.Log("//Cached kernel:", basename)
+		util.Log("Cached kernel:", basename)
 	}
 
 	return kernel
@@ -120,7 +120,6 @@ func CalcMFMKernel(mesh *d.Mesh, lift, tipsize float64) (kernel [3]*d.Slice) {
 	}
 
 	r1, r2 := kernelRanges(size, pbc)
-	progress, progmax := 0, (1+r2[Y]-r1[Y])*(1+r2[Z]-r1[Z])
 
 	for iz := r1[Z]; iz <= r2[Z]; iz++ {
 		zw := wrap(iz, size[Z])
@@ -129,8 +128,6 @@ func CalcMFMKernel(mesh *d.Mesh, lift, tipsize float64) (kernel [3]*d.Slice) {
 		for iy := r1[Y]; iy <= r2[Y]; iy++ {
 			yw := wrap(iy, size[Y])
 			y := float64(iy) * cellsize[Y]
-			progress++
-			util.Progress(progress, progmax, "Calculating MFM kernel")
 
 			for ix := r1[X]; ix <= r2[X]; ix++ {
 				x := float64(ix) * cellsize[X]

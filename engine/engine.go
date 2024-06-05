@@ -56,12 +56,13 @@ func CleanExit() {
 	}
 	drainOutput()
 	LogOut("**************** Simulation Ended ****************** //")
-	ZTables.Flush()
+	Table.Flush()
 	if logfile != nil {
 		logfile.Close()
 	}
 	if *Flag_sync {
 		timer.Print(os.Stdout)
 	}
+	script.MMetadata.Add("steps", NSteps)
 	script.MMetadata.End()
 }
