@@ -26,6 +26,41 @@ type regionwise struct {
 	name, unit string
 }
 
+var Params map[string]Field
+
+type Field struct {
+	Name        string           `json:"name"`
+	Value       func(int) string `json:"value"`
+	Description string           `json:"description"`
+}
+
+func AddParameter(name string, value interface{}, doc string) {
+	if Params == nil {
+		Params = make(map[string]Field)
+	}
+	if v, ok := value.(*RegionwiseScalar); ok {
+		Params[name] = Field{
+			name,
+			v.GetRegionToString,
+			doc,
+		}
+	}
+	if v, ok := value.(*RegionwiseVector); ok {
+		Params[name] = Field{
+			name,
+			v.GetRegionToString,
+			doc,
+		}
+	}
+	if v, ok := value.(*inputValue); ok {
+		Params[name] = Field{
+			name,
+			v.GetRegionToString,
+			doc,
+		}
+	}
+}
+
 func (p *regionwise) init(nComp int, name, unit string, children []derived) {
 	p.lut.init(nComp, p)
 	p.name = name
@@ -262,6 +297,10 @@ func (p *RegionwiseScalar) setRegionsFunc(r1, r2 int, f script.ScalarFunction) {
 func (p *RegionwiseScalar) GetRegion(region int) float64 {
 	return float64(p.getRegion(region)[0])
 }
+func (p *RegionwiseScalar) GetRegionToString(region int) string {
+	v := float64(p.getRegion(region)[0])
+	return fmt.Sprintf("%g", v)
+}
 
 func (p *RegionwiseScalar) Eval() interface{}       { return p }
 func (p *RegionwiseScalar) Type() reflect.Type      { return reflect.TypeOf(new(RegionwiseScalar)) }
@@ -353,7 +392,10 @@ func (p *RegionwiseVector) GetRegion(region int) [3]float64 {
 	v := p.getRegion(region)
 	return unslice(v)
 }
-
+func (p *RegionwiseVector) GetRegionToString(region int) string {
+	v := unslice(p.getRegion(region))
+	return fmt.Sprintf("(%g,%g,%g)", v[0], v[1], v[2])
+}
 func (p *RegionwiseVector) Eval() interface{}       { return p }
 func (p *RegionwiseVector) Type() reflect.Type      { return reflect.TypeOf(new(RegionwiseVector)) }
 func (p *RegionwiseVector) InputType() reflect.Type { return script.VectorFunction_t }
