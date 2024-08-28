@@ -2,22 +2,21 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/MathieuMoalic/amumax/api"
 	"github.com/MathieuMoalic/amumax/cuda"
 	"github.com/MathieuMoalic/amumax/engine"
 	"github.com/MathieuMoalic/amumax/script"
+	"github.com/MathieuMoalic/amumax/timer"
 	"github.com/MathieuMoalic/amumax/util"
 	"github.com/fatih/color"
 	"github.com/minio/selfupdate"
@@ -39,12 +38,12 @@ func main() {
 		return
 	}
 	// go checkUpdate()
-	log.SetPrefix("")
-	log.SetFlags(0)
 
 	cuda.Init(*engine.Flag_gpu)
 
 	cuda.Synchronous = *engine.Flag_sync
+	timer.Enabled = true //*engine.Flag_sync
+
 	if *flag_version {
 		printVersion()
 	}
@@ -62,7 +61,7 @@ func main() {
 		vet()
 		return
 	}
-	go api.Start()
+
 	switch flag.NArg() {
 	case 0:
 		if *engine.Flag_interactive {
@@ -79,10 +78,10 @@ type Release struct {
 	TagName string `json:"tag_name"`
 }
 
-func doUpdate() error {
+func doUpdate() {
 	resp, err := http.Get("https://github.com/mathieumoalic/amumax/releases/latest/download/amumax")
 	if err != nil {
-		return err
+		util.Log.PanicIfError(err)
 	}
 	defer resp.Body.Close()
 	err = selfupdate.Apply(resp.Body, selfupdate.Options{})
@@ -90,45 +89,15 @@ func doUpdate() error {
 		color.Red("Error updating")
 		color.Red(fmt.Sprint(err))
 	}
-	return err
-}
-
-func checkUpdate() {
-	if engine.VERSION == "dev" {
-		return
-	}
-	resp, err := http.Get("https://api.github.com/repos/mathieumoalic/amumax/releases/latest")
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	var release Release
-	err = json.Unmarshal(body, &release)
-	if err != nil {
-		return
-	}
-	if release.TagName != engine.VERSION {
-		color.HiCyan("\rCurrent amumax version          : %s", engine.VERSION)
-		color.HiCyan("Latest amumax version on github : %s", release.TagName)
-		color.HiCyan("Run the following command to update amumax:")
-		color.Blue("amumax --update")
-	}
 }
 
 func runInteractive() {
-	util.Log("//no input files: starting interactive session")
+	util.Log.Comment("No input files: starting interactive session")
 	// setup outut dir
 	now := time.Now()
 	outdir := fmt.Sprintf("/tmp/amumax-%v-%02d-%02d_%02dh%02d.zarr", now.Year(), int(now.Month()), now.Day(), now.Hour(), now.Minute())
 
 	engine.InitIO(outdir, outdir)
-
-	engine.Timeout = 365 * 24 * time.Hour // basically forever
 
 	// set up some sensible start configuration
 	engine.Eval(`
@@ -142,8 +111,9 @@ Msat = 1e6
 Aex = 10e-12
 alpha = 1
 m = RandomMag()`)
-	addr := goServeGUI()
-	openbrowser("http://127.0.0.1" + addr)
+	if *engine.Flag_webui_enabled {
+		go api.Start()
+	}
 	engine.RunInteractive()
 }
 
@@ -151,40 +121,40 @@ func runFileAndServe(fname string) {
 	if path.Ext(fname) == ".go" {
 		runGoFile(fname)
 	} else {
-		runScript(fname)
+		runMx3File(fname)
 	}
 }
 
-func runScript(fname string) {
-	if _, err := os.Stat(fname); errors.Is(err, os.ErrNotExist) {
-		util.Fatal("Error: File `", fname, "` does not exist")
+func runMx3File(mx3Path string) {
+	if _, err := os.Stat(mx3Path); errors.Is(err, os.ErrNotExist) {
+		util.Log.ErrAndExit("Error: File `%s` does not exist", mx3Path)
 	}
-	outDir := util.NoExt(fname) + ".zarr"
+	zarrPath := strings.Replace(mx3Path, ".mx3", ".zarr", 1)
 	if *engine.Flag_od != "" {
-		outDir = *engine.Flag_od
+		zarrPath = *engine.Flag_od
 	}
-	engine.InitIO(fname, outDir)
-
-	fname = engine.InputFile
+	engine.InitIO(mx3Path, zarrPath)
+	util.Log.Comment("Input file: %s", mx3Path)
+	util.Log.Comment("Output directory: %s", engine.OD())
+	util.Log.Init(zarrPath, engine.VERSION == "dev")
+	go util.Log.AutoFlushToFile()
+	mx3Path = engine.InputFile
 
 	var code *script.BlockStmt
 	var err2 error
-	if fname != "" {
+	if mx3Path != "" {
 		// first we compile the entire file into an executable tree
-		code, err2 = engine.CompileFile(fname)
+		code, err2 = engine.CompileFile(mx3Path)
 		if err2 != nil {
-			engine.LogErr("Error while parsing `", fname, "`")
+			util.Log.Err("Error while parsing `%s`", mx3Path)
 		}
-		util.FatalErr(err2)
+		util.Log.PanicIfError(err2)
 	}
 
 	// now the parser is not used anymore so it can handle web requests
-	goServeGUI()
-
-	if *engine.Flag_interactive {
-		openbrowser("http://127.0.0.1" + *engine.Flag_webui_addr)
+	if *engine.Flag_webui_enabled {
+		go api.Start()
 	}
-
 	// start executing the tree, possibly injecting commands from web gui
 	engine.EvalFile(code)
 
@@ -208,7 +178,6 @@ func runGoFile(fname string) {
 	}
 
 	cmd := exec.Command("go", flags...)
-	log.Println("go", flags)
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
@@ -218,38 +187,8 @@ func runGoFile(fname string) {
 	}
 }
 
-// start Gui server and return server address
-func goServeGUI() string {
-	if *engine.Flag_webui_addr == "" {
-		log.Println(`//not starting GUI (-http="")`)
-		return ""
-	}
-	addr := engine.GoServe(*engine.Flag_webui_addr)
-	return addr
-}
-
 // print version to stdout
 func printVersion() {
-	engine.LogOut(engine.UNAME)
-	engine.LogOut(fmt.Sprintf("GPU info: %s, using cc=%d PTX", cuda.GPUInfo, cuda.UseCC))
+	util.Log.Comment("%v", engine.UNAME)
+	util.Log.Comment("GPU info: %s, using cc=%d PTX", cuda.GPUInfo, cuda.UseCC)
 }
-
-// ************************************************************
-// * Amumax Version    | v.NOT_SET                               *
-// ************************************************************
-// * Platform          | Linux (amd64)                           *
-// ************************************************************
-// * Go version        | 1.21.4 (gc)                             *
-// ************************************************************
-// * CUDA version      | 12.3                                    *
-// ************************************************************
-// * GPU               | NVIDIA GeForce RTX 3080 Ti (12042MB)    *
-// *                   | CUDA Driver version: 12.3              *
-// *                   | Compute Capability: 8.6                *
-// *                   | Using Compute Capability: 52 PTX       *
-// ************************************************************
-// * Output Directory  | mytest/t1.zarr/                         *
-// ************************************************************
-// * GUI               | Accessible at                            *
-// *                   | http://localhost:35369                  *
-// ************************************************************

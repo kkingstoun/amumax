@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/MathieuMoalic/amumax/cuda"
@@ -23,6 +24,9 @@ func NewScalarExcitation(name, unit, desc string) *ScalarExcitation {
 	e.perRegion.init("_"+name+"_perRegion", unit, desc, nil) // name starts with underscore: unexported
 	DeclLValue(name, e, cat(desc, unit))
 	return e
+}
+func (e *ScalarExcitation) GetRegionToString(region int) string {
+	return fmt.Sprintf("%g", e.perRegion.GetRegion(region))
 }
 
 func (p *ScalarExcitation) MSlice() cuda.MSlice {
@@ -60,7 +64,7 @@ func (e *ScalarExcitation) RemoveExtraTerms() {
 		return
 	}
 
-	// LogOut("REMOVING EXTRA TERMS FROM", e.Name())
+	// util.Log.Comment("REMOVING EXTRA TERMS FROM", e.Name())
 	for _, m := range e.extraTerms {
 		m.mask.Free()
 	}
@@ -98,9 +102,8 @@ func (e *ScalarExcitation) AddGo(mask *data.Slice, mul func() float64) {
 func (e *ScalarExcitation) SetRegion(region int, f script.ScalarFunction) {
 	e.perRegion.SetRegion(region, f)
 }
-func (e *ScalarExcitation) SetValue(v interface{})         { e.perRegion.SetValue(v) }
-func (e *ScalarExcitation) Set(v float64)                  { e.perRegion.setRegions(0, NREGION, []float64{v}) }
-func (e *ScalarExcitation) getRegion(region int) []float64 { return e.perRegion.getRegion(region) } // for gui
+func (e *ScalarExcitation) SetValue(v interface{}) { e.perRegion.SetValue(v) }
+func (e *ScalarExcitation) Set(v float64)          { e.perRegion.setRegions(0, NREGION, []float64{v}) }
 
 func (e *ScalarExcitation) SetRegionFn(region int, f func() [3]float64) {
 	e.perRegion.setFunc(region, region+1, func() []float64 {

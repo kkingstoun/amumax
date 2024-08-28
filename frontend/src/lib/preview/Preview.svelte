@@ -2,14 +2,20 @@
 	import quantities from './quantities';
 	import { meshState } from '$api/incoming/mesh';
 	import { previewState as p } from '$api/incoming/preview';
-	import { display, resetCamera } from './plot-vector-field';
-	import {
-		postComponent,
-		postLayer,
-		postMaxPoints,
-		postQuantity,
-		postRefresh
-	} from '$api/outgoing/preview';
+	import { threeDPreview, disposePreview3D, resetCamera, preview3D } from './preview3D';
+	import { disposePreview2D, init, resizeECharts } from './preview2D';
+	import { postComponent, postLayer, postMaxPoints, postQuantity } from '$api/outgoing/preview';
+	import { onMount } from 'svelte';
+	onMount(() => {
+		resizeECharts();
+	});
+	let maxPointsInput = '';
+	function maxPointsInputChanged() {
+		if (maxPointsInput === '') {
+			return;
+		}
+		postMaxPoints(parseInt(maxPointsInput));
+	}
 </script>
 
 <section>
@@ -26,16 +32,43 @@
 				<option value={choice}>{choice}</option>
 			{/each}
 		</select>
-		Z-layer: 1
-		<input type="range" min="1" max={$meshState.Nz} bind:value={$p.layer} on:change={postLayer} />
+	</p>
+	<p>
+		Z-layer: 0
+		<input
+			type="range"
+			min="0"
+			max={$meshState.Nz - 1}
+			bind:value={$p.layer}
+			on:change={postLayer}
+		/>
 		{$p.layer}
 		{$meshState.Nz}
-		<button on:click={postRefresh}>Refresh</button>
 	</p>
-	Max Points:<input type="number" bind:value={$p.maxPoints} on:change={postMaxPoints} />
+	<p>
+		Max Points:<input
+			bind:value={maxPointsInput}
+			on:change={maxPointsInputChanged}
+			placeholder=" {$p.maxPoints}"
+		/>
+		Number of points in the preview:
+		{#if $p.scalarField !== null}
+			{$p.scalarField?.length}
+		{:else if $p.vectorFieldPositions !== null}
+			{$p.vectorFieldPositions?.length}
+		{/if}
+	</p>
 	<div id="container"></div>
-	Parsing time: {$display?.parsingTime.toFixed(0)} ms
-	<button on:click={resetCamera}>Reset Camera</button>
+	<p>
+		Parsing time: {$threeDPreview?.parsingTime.toFixed(0)} ms
+	</p>
+	<p>
+		<button on:click={resetCamera}>Reset Camera</button>
+		<button on:click={disposePreview2D}>disposePreview2D</button>
+		<button on:click={disposePreview3D}>disposePreview3D</button>
+		<button on:click={init}>init 2D</button>
+		<button on:click={preview3D}>init 3D</button>
+	</p>
 </section>
 
 <style>
@@ -45,6 +78,5 @@
 	#container {
 		width: 100%;
 		height: 500px;
-		border: 1px solid black;
 	}
 </style>

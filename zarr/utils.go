@@ -19,7 +19,7 @@ func MakeZgroup(name string, od string, zGroups *[]string) {
 	}
 	if !exists {
 		err := httpfs.Mkdir(od + name)
-		util.FatalErr(err)
+		util.Log.PanicIfError(err)
 		InitZgroup(od + name + "/")
 		*zGroups = append(*zGroups, name)
 	}
@@ -27,7 +27,8 @@ func MakeZgroup(name string, od string, zGroups *[]string) {
 
 func InitZgroup(path string) {
 	zgroup, err := httpfs.Create(path + ".zgroup")
-	util.FatalErr(err)
+	util.Log.PanicIfError(err)
 	defer zgroup.Close()
-	zgroup.Write([]byte("{\"zarr_format\": 2}"))
+	_, err = zgroup.Write([]byte("{\"zarr_format\": 2}"))
+	util.Log.PanicIfError(err)
 }

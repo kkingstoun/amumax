@@ -41,9 +41,9 @@ func (g *geom) Gpu() *data.Slice {
 func (g *geom) Slice() (*data.Slice, bool) {
 	s := g.Gpu()
 	if s.IsNil() {
-		s := cuda.Buffer(g.NComp(), g.Mesh().Size())
-		cuda.Memset(s, 1)
-		return s, true
+		buffer := cuda.Buffer(g.NComp(), g.Mesh().Size())
+		cuda.Memset(buffer, 1)
+		return buffer, true
 	} else {
 		return s, false
 	}
@@ -89,7 +89,7 @@ func (geometry *geom) setGeom(s Shape) {
 	c := geometry.Mesh().CellSize()
 	cx, cy, cz := c[X], c[Y], c[Z]
 
-	LogOut("Initializing geometry")
+	util.Log.Comment("Initializing geometry")
 	var ok bool
 	for iz := 0; iz < n[Z]; iz++ {
 		for iy := 0; iy < n[Y]; iy++ {
@@ -135,7 +135,7 @@ func (geometry *geom) setGeom(s Shape) {
 	}
 
 	if !ok {
-		util.Fatal("SetGeom: geometry completely empty")
+		util.Log.ErrAndExit("SetGeom: geometry completely empty")
 	}
 
 	data.Copy(geometry.buffer, V)

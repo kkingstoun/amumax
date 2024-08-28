@@ -16,49 +16,59 @@
         pkgs = import nixpkgs {
           inherit system;
           config = {
-            allowUnfree = true; # if your dependencies are unfree
+            allowUnfree = true; # cuda is unfree
           };
         };
+        cuda = pkgs.cudaPackages_11;
         buildAmumax = pkgs:
           pkgs.buildGoModule rec {
             pname = "amumax";
-            version = "2024.06.19";
+            version = "2024.07.23";
 
             src = pkgs.fetchFromGitHub {
               owner = "MathieuMoalic";
               repo = "amumax";
               rev = version;
-              hash = "sha256-qcxdyh+4S3onTwG4ZrC6skfEKMMlego2+Jms4kowQ6Y=";
+              hash = "sha256-KfagOhaVmps5WLANatQPNaDELPyjXzBwyZ3EBuGtExw=";
             };
-
-            vendorHash = "sha256-YqB7EofpTqDnqOQ+ARDJNvZVFltAy0j210lbSwEvifw=";
+            vendorHash = "sha256-SHUBKLKV8lwjyXlhM5OyHpwvm1s/yo9I3+Bow+MwRc0=";
+            # src = builtins.fetchGit {
+            #   path = ./.;
+            #   rev = "84848b4b467e4948e753af393ac83ef90a076373";
+            # };
+            # src = builtins.path {
+            #   path = ./.;
+            # };
 
             nativeBuildInputs = [
-              pkgs.cudaPackages.cuda_nvcc
+              cuda.cuda_nvcc
               pkgs.addDriverRunpath
+              pkgs.bun
             ];
 
             buildInputs = [
-              pkgs.cudaPackages.cuda_cudart
-              pkgs.cudaPackages.cuda_nvcc.dev
-              pkgs.cudaPackages.libcufft
-              pkgs.cudaPackages.libcurand
+              cuda.cuda_cudart
+              cuda.libcufft
+              cuda.libcurand
             ];
 
-            CGO_CFLAGS = [
-              "-lcufft"
-              "-lcurand"
-            ];
-
-            CGO_LDFLAGS = ["-L${pkgs.cudaPackages.cuda_cudart.lib}/lib/stubs/"];
-
+            CGO_CFLAGS = ["-lcufft" "-lcurand"];
+            CGO_LDFLAGS = ["-L${cuda.cuda_cudart.lib}/lib/stubs/"];
             ldflags = [
               "-s"
               "-w"
               "-X github.com/MathieuMoalic/amumax/engine.VERSION=${version}"
+              "-X github.com/MathieuMoalic/amumax/util.VERSION=${version}"
             ];
 
             doCheck = false;
+
+            # preBuild = ''
+            #   cd ${src}/frontend
+            #   ls -la
+            #   bun install
+            #   bun run build
+            # '';
 
             postFixup = ''
               addDriverRunpath $out/bin/*
@@ -66,9 +76,9 @@
 
             meta = with pkgs.lib; {
               description = "Fork of mumax3";
-              homepage = "https://github.com/MathieuMoalic/amumax/tree/main";
+              homepage = "https://github.com/MathieuMoalic/amumax";
               license = licenses.gpl3;
-              maintainers = [];
+              maintainers = ["MathieuMoalic"];
               mainProgram = "amumax";
             };
           };
@@ -77,34 +87,29 @@
           buildInputs = [
             pkgs.go
             pkgs.gopls
-            pkgs.cudaPackages.cuda_cudart
-            pkgs.cudaPackages.cuda_nvcc.dev
-            pkgs.cudaPackages.cuda_nvcc
-            pkgs.cudaPackages.libcufft
-            pkgs.cudaPackages.libcurand
-            pkgs.addDriverRunpath
-            # Add any other dependencies you need for development
+            pkgs.golangci-lint
+            cuda.cuda_cudart
+            cuda.cuda_nvcc
+            cuda.libcufft
+            cuda.libcurand
+            pkgs.gcc11
+            pkgs.bun
           ];
-          CGO_CFLAGS = [
-            "-lcufft"
-            "-lcurand"
-          ];
-
-          CGO_LDFLAGS = ["-L${pkgs.cudaPackages.cuda_cudart.lib}/lib/stubs/"];
-
-          ldflags = [
-            "-s"
-            "-w"
-          ];
-          # Set up any environment variables required for development
-          # For example, you might need to specify paths for CUDA libraries
-          # Environment variables like CGO_CFLAGS and CGO_LDFLAGS may go here if needed for development
+          CGO_LDFLAGS = "-lcufft -lcuda -lcurand -Wl,-rpath -Wl,\$ORIGIN";
+          CGO_CFLAGS_ALLOW = "(-fno-schedule-insns|-malign-double|-ffast-math)";
+          LD_LIBRARY_PATH = "${cuda.libcufft}/lib:${cuda.libcurand}/lib:/run/opengl-driver/lib/";
+          ldflags = ["-s" "-w"];
+          shellHook = ''
+            export GOPATH=$(pwd)/.go/path
+            export GOCACHE=$(pwd)/.go/cache
+            mkdir -p $GOPATH $GOCACHE
+          '';
         };
       in {
         packages.amumax = buildAmumax pkgs;
         packages.default = buildAmumax pkgs;
         defaultPackage.amumax = buildAmumax pkgs;
-        devShell = devEnv; # Provide the development environment for use with `nix develop`
+        devShell = devEnv;
       }
     );
 }

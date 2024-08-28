@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
 
 	"github.com/MathieuMoalic/amumax/cuda"
 	"github.com/MathieuMoalic/amumax/data"
+	"github.com/MathieuMoalic/amumax/mag"
 	"github.com/MathieuMoalic/amumax/util"
 	"github.com/MathieuMoalic/amumax/zarr"
 )
@@ -29,6 +31,7 @@ var (
 	stepper                 Stepper                      // generic step, can be EulerStep, HeunStep, etc
 	Solvertype              int
 	ProgressBar             zarr.ProgressBar
+	exchangeLenghtWarned    bool
 )
 
 func init() {
@@ -50,6 +53,7 @@ func init() {
 	_ = NewScalarValue("LastErr", "", "Error of last step", func() float64 { return LastErr })
 	_ = NewScalarValue("PeakErr", "", "Overall maxium error per step", func() float64 { return PeakErr })
 	_ = NewScalarValue("NEval", "", "Total number of torque evaluations", func() float64 { return float64(NEvals) })
+	exchangeLenghtWarned = false
 }
 
 // Time stepper like Euler, Heun, RK23
@@ -76,7 +80,7 @@ func SetSolver(typ int) {
 	}
 	switch typ {
 	default:
-		util.Fatalf("SetSolver: unknown solver type: %v", typ)
+		util.Log.ErrAndExit("SetSolver: unknown solver type:  %v", typ)
 	case BACKWARD_EULER:
 		stepper = new(BackwardEuler)
 	case EULER:
@@ -142,7 +146,7 @@ func adaptDt(corr float64) {
 		Dt_si = MaxDt
 	}
 	if Dt_si == 0 {
-		util.Fatal("time step too small")
+		util.Log.ErrAndExit("time step too small")
 	}
 
 	// do not cross alarm time
@@ -162,6 +166,7 @@ func RunWithoutPrecession(seconds float64) {
 
 // Run the simulation for a number of seconds.
 func Run(seconds float64) {
+	checkExchangeLenght()
 	start := Time
 	stop := Time + seconds
 	alarm = stop // don't have dt adapt to go over alarm
@@ -195,6 +200,7 @@ func Steps(n int) {
 
 // Runs as long as condition returns true, saves output.
 func RunWhile(condition func() bool) {
+	checkExchangeLenght()
 	SanityCheck()
 	Pause = false // may be set by <-Inject
 	const output = true
@@ -216,9 +222,13 @@ func RunWhileInner(condition func() bool, output bool) {
 	}
 }
 
-// Runs as long as browser is connected to gui.
+// Runs indefinitely
 func RunInteractive() {
-	GUI.RunInteractive()
+	for {
+		f := <-Inject
+		f()
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 // take one time step
@@ -238,6 +248,10 @@ func PostStep(f func()) {
 	postStep = append(postStep, f)
 }
 
+func Break() {
+	Inject <- func() { Pause = true }
+}
+
 // inject code into engine and wait for it to complete.
 func InjectAndWait(task func()) {
 	ready := make(chan int)
@@ -247,14 +261,39 @@ func InjectAndWait(task func()) {
 
 func SanityCheck() {
 	if Msat.isZero() {
-		util.Log("Note: Msat = 0")
+		util.Log.Comment("Note: Msat = 0")
 	}
 	if Aex.isZero() {
-		util.Log("Note: Aex = 0")
+		util.Log.Comment("Note: Aex = 0")
 	}
 }
 
 func Exit() {
 	CleanExit()
 	os.Exit(0)
+}
+
+func checkExchangeLenght() {
+	if exchangeLenghtWarned {
+		return
+	}
+	// iterate over all of the quantities
+	for _, region := range Regions.GetExistingIndices() {
+		Msat_r := Msat.GetRegion(region)
+		Aex_r := Aex.GetRegion(region)
+		lex := math.Sqrt(2 * Aex_r / (mag.Mu0 * Msat_r * Msat_r))
+		if Dx > lex {
+			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dx (%.3g nm) in region %d", lex*1e9, Dx*1e9, region)
+			exchangeLenghtWarned = true
+		}
+		if Dy > lex {
+			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dy (%.3g nm) in region %d", lex*1e9, Dy*1e9, region)
+			exchangeLenghtWarned = true
+		}
+		if Dz > lex && Nz > 1 {
+			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dz (%.3g nm) in region %d", lex*1e9, Dz*1e9, region)
+			exchangeLenghtWarned = true
+		}
+	}
+
 }

@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/MathieuMoalic/amumax/cuda/cu"
 	"github.com/MathieuMoalic/amumax/engine"
+	"github.com/MathieuMoalic/amumax/util"
 )
 
 var (
@@ -26,7 +26,8 @@ var (
 func RunQueue(files []string) {
 	s := NewStateTab(files)
 	s.PrintTo(os.Stdout)
-	go s.ListenAndServe(*engine.Flag_webui_queue_addr)
+	addr := fmt.Sprint(*engine.Flag_webui_queue_host, ":", *engine.Flag_webui_queue_port)
+	go s.ListenAndServe(addr)
 	s.Run()
 	fmt.Println(numOK.get(), "OK, ", numFailed.get(), "failed")
 	os.Exit(int(exitStatus))
@@ -92,7 +93,7 @@ func (s *stateTab) Run() {
 			break
 		}
 		go func() {
-			run(j.inFile, gpu, j.webAddr)
+			run(j.inFile, gpu)
 			s.Finish(j)
 			idle <- gpu
 		}()
@@ -105,17 +106,16 @@ func (s *stateTab) Run() {
 
 type atom int32
 
-func (a *atom) set(v int) { atomic.StoreInt32((*int32)(a), int32(v)) }
-func (a *atom) get() int  { return int(atomic.LoadInt32((*int32)(a))) }
-func (a *atom) inc()      { atomic.AddInt32((*int32)(a), 1) }
+func (a *atom) get() int { return int(atomic.LoadInt32((*int32)(a))) }
+func (a *atom) inc()     { atomic.AddInt32((*int32)(a), 1) }
 
-func run(inFile string, gpu int, webAddr string) {
+func run(inFile string, gpu int) {
 	// overridden flags
 	gpuFlag := fmt.Sprint(`-gpu=`, gpu)
-	httpFlag := fmt.Sprint(`-http=`, webAddr)
+	// httpFlag := fmt.Sprint(`-http=`, webAddr)
 
 	// pass through flags
-	flags := []string{gpuFlag, httpFlag}
+	flags := []string{gpuFlag}
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name != "gpu" && f.Name != "http" && f.Name != "failfast" {
 			flags = append(flags, fmt.Sprintf("-%v=%v", f.Name, f.Value))
@@ -123,26 +123,13 @@ func run(inFile string, gpu int, webAddr string) {
 	})
 	flags = append(flags, inFile)
 
-	cmd := exec.Command(os.Args[0], flags...)
-	log.Println(os.Args[0], flags)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Println(inFile, err)
-		log.Printf("%s\n", output)
-		exitStatus.set(1)
-		numFailed.inc()
-		if *flag_failfast {
-			os.Exit(1)
-		}
-	} else {
-		numOK.inc()
-	}
+	_ = exec.Command(os.Args[0], flags...)
+	numOK.inc()
 }
 
 func initGPUs(nGpu int) chan int {
 	if nGpu == 0 {
-		log.Fatal("no GPUs available")
-		panic(0)
+		util.Log.ErrAndExit("no GPUs available")
 	}
 	idle := make(chan int, nGpu)
 	for i := 0; i < nGpu; i++ {
@@ -223,7 +210,9 @@ func (s *stateTab) RenderHTML(w io.Writer) {
 
 func (s *stateTab) ListenAndServe(addr string) {
 	http.Handle("/", s)
-	go http.ListenAndServe(addr, nil)
+	go func() {
+		util.Log.PanicIfError(http.ListenAndServe(addr, nil))
+	}()
 }
 
 func (s *stateTab) ServeHTTP(w http.ResponseWriter, r *http.Request) {

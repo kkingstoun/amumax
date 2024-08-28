@@ -5,8 +5,6 @@ package data
 import (
 	"bytes"
 	"fmt"
-	"log"
-	"reflect"
 	"unsafe"
 
 	"github.com/MathieuMoalic/amumax/util"
@@ -24,7 +22,7 @@ type Slice struct {
 // NOTE: cpyDtoH and cpuHtoD are only needed to support 32-bit builds,
 // otherwise, it could be removed in favor of memCpy only.
 var (
-	memFree, memFreeHost           func(unsafe.Pointer)
+	memFree                        func(unsafe.Pointer)
 	memCpy, memCpyDtoH, memCpyHtoD func(dst, src unsafe.Pointer, bytes int64)
 )
 
@@ -37,7 +35,6 @@ func prod(size [3]int) int {
 func EnableGPU(free, freeHost func(unsafe.Pointer),
 	cpy, cpyDtoH, cpyHtoD func(dst, src unsafe.Pointer, bytes int64)) {
 	memFree = free
-	memFreeHost = freeHost
 	memCpy = cpy
 	memCpyDtoH = cpyDtoH
 	memCpyHtoD = cpyHtoD
@@ -79,9 +76,7 @@ func SliceFromPtrs(size [3]int, memType int8, ptrs []unsafe.Pointer) *Slice {
 	s := new(Slice)
 	s.ptrs = make([]unsafe.Pointer, nComp)
 	s.size = size
-	for c := range ptrs {
-		s.ptrs[c] = ptrs[c]
-	}
+	copy(s.ptrs, ptrs)
 	s.memType = memType
 	return s
 }
@@ -191,14 +186,11 @@ const SIZEOF_FLOAT32 = 4
 // It should have CPUAccess() == true.
 func (s *Slice) Host() [][]float32 {
 	if !s.CPUAccess() {
-		log.Panic("slice not accessible by CPU")
+		util.Log.PanicIfError(fmt.Errorf("slice not accessible by CPU"))
 	}
 	list := make([][]float32, s.NComp())
 	for c := range list {
-		hdr := (*reflect.SliceHeader)(unsafe.Pointer(&list[c]))
-		hdr.Data = uintptr(s.ptrs[c])
-		hdr.Len = s.Len()
-		hdr.Cap = hdr.Len
+		list[c] = unsafe.Slice((*float32)(unsafe.Pointer(s.ptrs[c])), s.Len())
 	}
 	return list
 }

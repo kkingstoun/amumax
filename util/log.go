@@ -4,69 +4,98 @@ package util
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"runtime"
+	"time"
 
+	"github.com/MathieuMoalic/amumax/httpfs"
 	"github.com/fatih/color"
 )
 
-func Fatal(msg ...interface{}) {
-	log.Fatal(msg...)
+var Log Logs
+
+type Logs struct {
+	Hist    string                   // console history for GUI
+	logfile httpfs.WriteCloseFlusher // saves history of input commands +  output
+	dev     bool
 }
 
-func Fatalf(format string, msg ...interface{}) {
-	log.Fatalf(format, msg...)
+func (l *Logs) AutoFlushToFile() {
+	for {
+		l.FlushToFile()
+		time.Sleep(5 * time.Second)
+	}
 }
 
-func FatalErr(err error) {
+func (l *Logs) FlushToFile() {
+	if l.logfile != nil {
+		l.logfile.Flush()
+	}
+}
+
+func (l *Logs) Init(zarrPath string, dev bool) {
+	f, err := httpfs.Create(zarrPath + "/log.txt")
+	if err != nil {
+		color.Red(fmt.Sprintf("Error creating the log file: %v", err))
+	}
+	l.logfile = f // otherwise f gets dropped
+	_, err = l.logfile.Write([]byte(l.Hist))
+	if err != nil {
+		color.Red(fmt.Sprintf("Error writing to log file: %v", err))
+	}
+	l.dev = dev
+}
+
+func (l *Logs) writeToFile(msg string) {
+	if l.logfile != nil {
+		_, err := l.logfile.Write([]byte(msg + "\n"))
+		if err != nil {
+			color.Red(fmt.Sprintf("Error writing to log file: %v", err))
+		}
+		l.Hist += msg + "\n"
+	}
+}
+
+func (l *Logs) Command(msg ...interface{}) {
+	fmt.Println(fmt.Sprint(msg...))
+	l.writeToFile(fmt.Sprint(msg...))
+}
+
+func (l *Logs) Comment(msg string, args ...interface{}) {
+	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+	color.Green(formattedMsg)
+	l.writeToFile(formattedMsg)
+}
+
+func (l *Logs) Warn(msg string, args ...interface{}) {
+	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+	color.Yellow(formattedMsg)
+	l.writeToFile(formattedMsg)
+}
+
+func (l *Logs) Dev(msg string, args ...interface{}) {
+	if l.dev {
+		formattedMsg := "// " + fmt.Sprintf(msg, args...)
+		color.Blue(formattedMsg)
+		l.writeToFile(formattedMsg)
+	}
+}
+
+func (l *Logs) Err(msg string, args ...interface{}) {
+	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+	color.Red(formattedMsg)
+	l.writeToFile(formattedMsg)
+}
+
+func (l *Logs) PanicIfError(err error) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		color.Red(fmt.Sprint("// ", file, ":", line, err))
-		os.Exit(1)
+		panic(err)
 	}
 }
 
-func PanicErr(err error) {
-	if err != nil {
-		log.Panic(err)
-	}
-}
-
-func LogThenExit(msg ...interface{}) {
-	color.Red("// " + fmt.Sprint(msg...))
+func (l *Logs) ErrAndExit(msg string, args ...interface{}) {
+	l.Err(msg, args...)
 	os.Exit(1)
-}
-
-func LogErr(msg ...interface{}) {
-	color.Red("// " + fmt.Sprint(msg...))
-}
-
-func Log(msg ...interface{}) {
-	color.Green("// " + fmt.Sprint(msg...))
-}
-
-func LogWarn(msg ...interface{}) {
-	color.Yellow("// " + fmt.Sprint(msg...))
-}
-
-// Panics with "illegal argument" if test is false.
-func Argument(test bool) {
-	if !test {
-		log.Panic("illegal argument")
-	}
-}
-
-// Panics with msg if test is false
-func AssertMsg(test bool, msg interface{}) {
-	if !test {
-		log.Panic(msg)
-	}
-}
-
-// Panics with "assertion failed" if test is false.
-func Assert(test bool) {
-	if !test {
-		log.Panic("assertion failed")
-	}
 }

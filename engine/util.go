@@ -5,7 +5,6 @@ import (
 	"math"
 	"os"
 	"path"
-	"sort"
 	"strings"
 
 	"github.com/MathieuMoalic/amumax/cuda"
@@ -23,7 +22,7 @@ func init() {
 	DeclFunc("Fprintln", Fprintln, "Print to file")
 	DeclFunc("Sign", sign, "Signum function")
 	DeclFunc("Vector", Vector, "Constructs a vector with given components")
-	DeclConst("Mu0", mag.Mu0, "Permittivity of vaccum (Tm/A)")
+	DeclConst("Mu0", mag.Mu0, "Permittivity of vacuum (Tm/A)")
 	DeclFunc("Print", myprint, "Print to standard output")
 	DeclFunc("LoadFile", LoadFile, "Load a zarr data file")
 	DeclFunc("LoadOvfFile", LoadOvfFile, "Load an ovf data file")
@@ -61,11 +60,11 @@ func Vector(x, y, z float64) data.Vector {
 // and print suited message.
 func Expect(msg string, have, want, maxError float64) {
 	if math.IsNaN(have) || math.IsNaN(want) || math.Abs(have-want) > maxError {
-		LogOut(msg, ":", " have: ", have, " want: ", want, "±", maxError)
+		util.Log.Comment(msg, ":", " have: ", have, " want: ", want, "±", maxError)
 		CleanExit()
 		os.Exit(1)
 	} else {
-		LogOut(msg, ":", have, "OK")
+		util.Log.Comment(msg, ":", have, "OK")
 	}
 	// note: we also check "want" for NaN in case "have" and "want" are switched.
 }
@@ -81,23 +80,24 @@ func Fprintln(filename string, msg ...interface{}) {
 	if !path.IsAbs(filename) {
 		filename = OD() + filename
 	}
-	httpfs.Touch(filename)
-	err := httpfs.Append(filename, []byte(fmt.Sprintln(myFmt(msg)...)))
-	util.FatalErr(err)
+	err := httpfs.Touch(filename)
+	util.Log.PanicIfError(err)
+	err = httpfs.Append(filename, []byte(fmt.Sprintln(myFmt(msg)...)))
+	util.Log.PanicIfError(err)
 }
 func LoadFile(fname string) *data.Slice {
 	var s *data.Slice
 	s, err := zarr.Read(fname, OD())
-	util.FatalErr(err)
+	util.Log.PanicIfError(err)
 	return s
 }
 
 func LoadOvfFile(fname string) *data.Slice {
 	in, err := httpfs.Open(fname)
-	util.FatalErr(err)
+	util.Log.PanicIfError(err)
 	var s *data.Slice
 	s, _, err = oommf.Read(in)
-	util.FatalErr(err)
+	util.Log.PanicIfError(err)
 	return s
 }
 
@@ -116,7 +116,7 @@ func Download(q Quantity) *data.Slice {
 
 // print with special formatting for some known types
 func myprint(msg ...interface{}) {
-	LogOut(myFmt(msg)...)
+	util.Log.Comment("%v", myFmt(msg)...)
 }
 
 // mumax specific formatting (Slice -> average, etc).
@@ -173,17 +173,6 @@ func assureGPU(s *data.Slice) *data.Slice {
 	} else {
 		return cuda.GPUCopy(s)
 	}
-}
-
-type caseIndep []string
-
-func (s *caseIndep) Len() int           { return len(*s) }
-func (s *caseIndep) Less(i, j int) bool { return strings.ToLower((*s)[i]) < strings.ToLower((*s)[j]) }
-func (s *caseIndep) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
-
-func sortNoCase(s []string) {
-	i := caseIndep(s)
-	sort.Sort(&i)
 }
 
 func checkNaN1(x float64) {

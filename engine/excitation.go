@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 
@@ -71,7 +72,7 @@ func (e *Excitation) RemoveExtraTerms() {
 		return
 	}
 
-	// LogOut("REMOVING EXTRA TERMS FROM", e.Name())
+	// util.Log.Comment("REMOVING EXTRA TERMS FROM", e.Name())
 	for _, m := range e.extraTerms {
 		m.mask.Free()
 	}
@@ -109,7 +110,6 @@ func (e *Excitation) AddGo(mask *data.Slice, mul func() float64) {
 func (e *Excitation) SetRegion(region int, f script.VectorFunction) { e.perRegion.SetRegion(region, f) }
 func (e *Excitation) SetValue(v interface{})                        { e.perRegion.SetValue(v) }
 func (e *Excitation) Set(v data.Vector)                             { e.perRegion.setRegions(0, NREGION, slice(v)) }
-func (e *Excitation) getRegion(region int) []float64                { return e.perRegion.getRegion(region) } // for gui
 
 func (e *Excitation) SetRegionFn(region int, f func() [3]float64) {
 	e.perRegion.setFunc(region, region+1, func() []float64 {
@@ -131,12 +131,17 @@ func (e *Excitation) Type() reflect.Type      { return reflect.TypeOf(new(Excita
 func (e *Excitation) InputType() reflect.Type { return script.VectorFunction_t }
 func (e *Excitation) EvalTo(dst *data.Slice)  { EvalTo(e, dst) }
 
+func (e *Excitation) GetRegionToString(region int) string {
+	v := e.perRegion.GetRegion(region)
+	return fmt.Sprintf("(%g,%g,%g)", v[0], v[1], v[2])
+}
+
 func checkNaN(s *data.Slice, name string) {
 	h := s.Host()
 	for _, h := range h {
 		for _, v := range h {
 			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
-				util.Fatal("NaN or Inf in", name)
+				util.Log.ErrAndExit("NaN or Inf in %v", name)
 			}
 		}
 	}

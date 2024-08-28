@@ -9,29 +9,20 @@
 	import InitialMag from '$lib/InitialMag.svelte';
 	import Parameters from '$lib/Parameters.svelte';
 	import Footer from '$lib/Footer.svelte';
-	import { onDestroy, onMount } from 'svelte';
-	import { baseURL } from '$api/post';
-	import { initializeWebSocket, ws } from '$api/websocket';
-	// import { wsConnect } from '../api/websocket';
+	import { onMount } from 'svelte';
+	import { initializeWebSocket } from '$api/websocket';
 
 	onMount(() => {
 		try {
-			// wsConnect();
-			initializeWebSocket(ws);
+			initializeWebSocket();
 		} catch (error) {
 			console.error('Error connecting to websocket:', error);
 		}
-		// baseURL.set(window.location.origin);
-		baseURL.set('http://localhost:5001');
-		// console.log('baseURL:', get(baseURL));
-		// fetchEngineState().catch((error) => {
-		// 	console.error('Error fetching engine state:', error);
-		// });
 	});
 </script>
 
+<Header />
 <div class="grid-container">
-	<Header />
 	<Display />
 	<TablePlot />
 	<Solver />
@@ -47,7 +38,6 @@
 	.grid-container {
 		display: grid;
 		grid-template-areas:
-			'header header header header'
 			'display display tableplot tableplot'
 			'console console solver solver'
 			'parameters parameters mesh mesh'

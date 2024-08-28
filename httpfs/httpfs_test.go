@@ -4,11 +4,21 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 )
 
 // leaving this many files open is supposed to trigger os error.
 const MANYFILES = 1025
+
+func FatalRemove(URL string) {
+	err := Remove(URL)
+
+	if err != nil {
+		fmt.Println("FatalRemove: ", err)
+		os.Exit(1)
+	}
+}
 
 // start local httpfs server, and use http://address/ as WD
 func init() {
@@ -31,8 +41,8 @@ func init() {
 }
 
 func TestMkdirRemove(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Mkdir("testdata"))
 	mustFail(t, Mkdir("testdata"))
@@ -45,8 +55,8 @@ func TestMkdirRemove(t *testing.T) {
 }
 
 func TestMkdir(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustFail(t, Mkdir("testdata/bla/bla"))
 	mustPass(t, Mkdir("testdata/"))
@@ -55,8 +65,8 @@ func TestMkdir(t *testing.T) {
 }
 
 func TestTouch(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustFail(t, Touch("testdata/file"))
 	mustPass(t, Mkdir("testdata/"))
@@ -69,10 +79,10 @@ func TestTouch(t *testing.T) {
 }
 
 func TestReaddir(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
-	s := func(s []string, e error) error { return e }
+	s := func(_ []string, e error) error { return e }
 
 	mustFail(t, s(ReadDir("testdata")))
 
@@ -101,8 +111,8 @@ func TestReaddir(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Remove("testdata"))
 
@@ -113,8 +123,8 @@ func TestRemove(t *testing.T) {
 }
 
 func TestAppendRead(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 	mustPass(t, Mkdir("testdata"))
 
 	data := []byte("hello httpfs\n")
@@ -135,8 +145,8 @@ func TestAppendRead(t *testing.T) {
 }
 
 func TestConcurrentWrite(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 	mustPass(t, Mkdir("testdata"))
 	mustPass(t, Touch("testdata/file"))
 
@@ -160,8 +170,8 @@ func TestConcurrentWrite(t *testing.T) {
 }
 
 func TestAppendSize(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Mkdir("testdata"))
 
@@ -184,8 +194,8 @@ func TestAppendSize(t *testing.T) {
 }
 
 func TestAppendSizeBad(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Mkdir("testdata"))
 	mustPass(t, Touch("testdata/file"))
@@ -197,8 +207,8 @@ func TestAppendSizeBad(t *testing.T) {
 }
 
 func TestPutRead(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Mkdir("testdata"))
 
@@ -219,8 +229,8 @@ func TestPutRead(t *testing.T) {
 }
 
 func TestReaderWriter(t *testing.T) {
-	Remove("testdata")
-	defer Remove("testdata")
+	FatalRemove("testdata")
+	defer FatalRemove("testdata")
 
 	mustPass(t, Mkdir("testdata"))
 
