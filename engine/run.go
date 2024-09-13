@@ -177,7 +177,7 @@ func Run(seconds float64) {
 
 	SaveIfNeeded() // allow t=0 output
 	ProgressBar = zarr.ProgressBar{}
-	ProgressBar.New(start, stop, *Flag_magnets)
+	ProgressBar.New(start, stop, "🧲", ShowProgresBar)
 	for (Time < stop) && !Pause {
 		select {
 		default:
@@ -261,10 +261,10 @@ func InjectAndWait(task func()) {
 
 func SanityCheck() {
 	if Msat.isZero() {
-		util.Log.Comment("Note: Msat = 0")
+		util.Log.Info("Note: Msat = 0")
 	}
 	if Aex.isZero() {
-		util.Log.Comment("Note: Aex = 0")
+		util.Log.Info("Note: Aex = 0")
 	}
 }
 
@@ -282,18 +282,21 @@ func checkExchangeLenght() {
 		Msat_r := Msat.GetRegion(region)
 		Aex_r := Aex.GetRegion(region)
 		lex := math.Sqrt(2 * Aex_r / (mag.Mu0 * Msat_r * Msat_r))
-		if Dx > lex {
-			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dx (%.3g nm) in region %d", lex*1e9, Dx*1e9, region)
-			exchangeLenghtWarned = true
+		if !exchangeLenghtWarned {
+			if Dx > lex {
+				util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dx (%.3g nm) in region %d", lex*1e9, Dx*1e9, region)
+				exchangeLenghtWarned = true
+			}
+			if Dy > lex {
+				util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dy (%.3g nm) in region %d", lex*1e9, Dy*1e9, region)
+				exchangeLenghtWarned = true
+			}
+			if Dz > lex && Nz > 1 {
+				util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dz (%.3g nm) in region %d", lex*1e9, Dz*1e9, region)
+				exchangeLenghtWarned = true
+			}
 		}
-		if Dy > lex {
-			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dy (%.3g nm) in region %d", lex*1e9, Dy*1e9, region)
-			exchangeLenghtWarned = true
-		}
-		if Dz > lex && Nz > 1 {
-			util.Log.Warn("Warning: Exchange length (%.3g nm) smaller than dz (%.3g nm) in region %d", lex*1e9, Dz*1e9, region)
-			exchangeLenghtWarned = true
-		}
+
 	}
 
 }

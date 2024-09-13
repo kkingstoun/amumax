@@ -11,23 +11,16 @@ TODO: godoc everything
 package engine
 
 import (
-	"fmt"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
-	"github.com/MathieuMoalic/amumax/cuda/cu"
 	"github.com/MathieuMoalic/amumax/script"
 	"github.com/MathieuMoalic/amumax/timer"
 	"github.com/MathieuMoalic/amumax/util"
 )
 
 var VERSION = "dev"
-
-var UNAME = fmt.Sprintf("Amumax v.%s a fork of mumax 3.10 [%s_%s %s(%s) CUDA-%d.%d]",
-	VERSION, runtime.GOOS, runtime.GOARCH, runtime.Version(), runtime.Compiler,
-	cu.CUDA_VERSION/1000, (cu.CUDA_VERSION%1000)/10)
 
 var StartTime = time.Now()
 
@@ -56,12 +49,9 @@ func CleanExit() {
 		return
 	}
 	drainOutput()
-	util.Log.Comment("**************** Simulation Ended ****************** //")
+	util.Log.Info("**************** Simulation Ended ****************** //")
 	Table.Flush()
-	if logfile != nil {
-		logfile.Close()
-	}
-	if *Flag_sync {
+	if SyncAndLog {
 		timer.Print(os.Stdout)
 	}
 	script.MMetadata.Add("steps", NSteps)

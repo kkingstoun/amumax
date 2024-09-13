@@ -17,7 +17,8 @@ var Log Logs
 type Logs struct {
 	Hist    string                   // console history for GUI
 	logfile httpfs.WriteCloseFlusher // saves history of input commands +  output
-	dev     bool
+	debug   bool
+	path    string
 }
 
 func (l *Logs) AutoFlushToFile() {
@@ -30,67 +31,81 @@ func (l *Logs) AutoFlushToFile() {
 func (l *Logs) FlushToFile() {
 	if l.logfile != nil {
 		l.logfile.Flush()
+
 	}
 }
 
-func (l *Logs) Init(zarrPath string, dev bool) {
-	f, err := httpfs.Create(zarrPath + "/log.txt")
+func (l *Logs) Init(zarrPath string, debug bool) {
+	l.path = zarrPath + "/log.txt"
+	l.debug = debug
+	l.createLogFile()
+	l.writeToFile(l.Hist)
+}
+
+func (l *Logs) createLogFile() {
+	var err error
+	l.logfile, err = httpfs.Create(l.path)
 	if err != nil {
 		color.Red(fmt.Sprintf("Error creating the log file: %v", err))
 	}
-	l.logfile = f // otherwise f gets dropped
-	_, err = l.logfile.Write([]byte(l.Hist))
-	if err != nil {
-		color.Red(fmt.Sprintf("Error writing to log file: %v", err))
-	}
-	l.dev = dev
 }
 
 func (l *Logs) writeToFile(msg string) {
-	if l.logfile != nil {
-		_, err := l.logfile.Write([]byte(msg + "\n"))
-		if err != nil {
+	if l.logfile == nil {
+		return
+	}
+	_, err := l.logfile.Write([]byte(msg))
+	if err != nil {
+		if err.Error() == "short write" {
+			color.Yellow("Error writing to log file, trying to recreate it...")
+			l.createLogFile()
+			_, _ = l.logfile.Write([]byte(msg))
+		} else {
 			color.Red(fmt.Sprintf("Error writing to log file: %v", err))
 		}
-		l.Hist += msg + "\n"
 	}
+}
+
+func (l *Logs) addAndWrite(msg string) {
+	l.Hist += msg
+	l.writeToFile(msg)
 }
 
 func (l *Logs) Command(msg ...interface{}) {
 	fmt.Println(fmt.Sprint(msg...))
-	l.writeToFile(fmt.Sprint(msg...))
+	l.addAndWrite(fmt.Sprint(msg...) + "\n")
 }
 
-func (l *Logs) Comment(msg string, args ...interface{}) {
-	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+func (l *Logs) Info(msg string, args ...interface{}) {
+	formattedMsg := "// " + fmt.Sprintf(msg, args...) + "\n"
 	color.Green(formattedMsg)
-	l.writeToFile(formattedMsg)
+	l.addAndWrite(formattedMsg)
 }
 
 func (l *Logs) Warn(msg string, args ...interface{}) {
-	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+	formattedMsg := "// " + fmt.Sprintf(msg, args...) + "\n"
 	color.Yellow(formattedMsg)
-	l.writeToFile(formattedMsg)
+	l.addAndWrite(formattedMsg)
 }
 
-func (l *Logs) Dev(msg string, args ...interface{}) {
-	if l.dev {
-		formattedMsg := "// " + fmt.Sprintf(msg, args...)
+func (l *Logs) Debug(msg string, args ...interface{}) {
+	if l.debug {
+		formattedMsg := "// " + fmt.Sprintf(msg, args...) + "\n"
 		color.Blue(formattedMsg)
-		l.writeToFile(formattedMsg)
+		l.addAndWrite(formattedMsg)
 	}
 }
 
 func (l *Logs) Err(msg string, args ...interface{}) {
-	formattedMsg := "// " + fmt.Sprintf(msg, args...)
+	formattedMsg := "// " + fmt.Sprintf(msg, args...) + "\n"
 	color.Red(formattedMsg)
-	l.writeToFile(formattedMsg)
+	l.addAndWrite(formattedMsg)
 }
 
 func (l *Logs) PanicIfError(err error) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		color.Red(fmt.Sprint("// ", file, ":", line, err))
+		color.Red(fmt.Sprint("// ", file, ":", line, err) + "\n")
 		panic(err)
 	}
 }

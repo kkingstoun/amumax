@@ -23,11 +23,13 @@ function update() {
         ],
         xAxis: {
             name: `${t.xColumn} (${t.xColumnUnit})`,
+            min: t.xmin,
+            max: t.xmax,
         },
         yAxis: {
             name: `${t.yColumn} (${t.yColumnUnit})`,
-            min: t.min,
-            max: t.max,
+            min: t.ymin,
+            max: t.ymax,
         }
     });
 }
@@ -71,6 +73,8 @@ export function init() {
         },
         xAxis: {
             name: `${t.xColumn} (${t.xColumnUnit})`,
+            min: t.xmin,
+            max: t.xmax,
             nameLocation: 'middle',
             nameGap: 25,
             nameTextStyle: {
@@ -90,13 +94,13 @@ export function init() {
                     return parseFloat(value).toPrecision(2);
                 },
                 color: '#fff',
-                showMinLabel: true,
+                // showMinLabel: true,
             }
         },
         yAxis: {
             name: `${t.yColumn} (${t.yColumnUnit})`,
-            min: t.min,
-            max: t.max,
+            min: t.ymin,
+            max: t.ymax,
             nameLocation: 'middle',
             nameGap: 45,
             nameTextStyle: {
@@ -133,6 +137,9 @@ export function init() {
 
 export function resizeECharts() {
     window.addEventListener('resize', function () {
+        if (chartInstance === undefined || chartInstance.isDisposed()) {
+            return;
+        }
         chartInstance.resize();
     });
 }

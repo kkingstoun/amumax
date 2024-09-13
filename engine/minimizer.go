@@ -13,7 +13,7 @@ import (
 var (
 	DmSamples              int     = 10   // number of dm to keep for convergence check
 	StopMaxDm              float64 = 1e-6 // stop minimizer if sampled dm is smaller than this
-	MinimizeMaxSteps       int     = 100000
+	MinimizeMaxSteps       int     = 1000000
 	MinimizeMaxTimeSeconds         = 60 * 60 * 24 * 7 // one week
 )
 
@@ -174,10 +174,10 @@ func Minimize() {
 		maxDmReached := mini.lastDm.Max() > StopMaxDm
 		out := !(maxStepsReached || maxTimeReached || !(maxDmSamplesReached || maxDmReached))
 		if maxStepsReached {
-			util.Log.Comment("Stopping `Minimize()`: Maximum time steps reached ( MinimizeMaxSteps= %v steps", MinimizeMaxSteps)
+			util.Log.Info("Stopping `Minimize()`: Maximum time steps reached ( MinimizeMaxSteps= %v steps", MinimizeMaxSteps)
 		}
 		if maxTimeReached {
-			util.Log.Comment("Stopping `Minimize()`: Maximum time reached ( MinimizeMaxTimeSeconds= %vs )", MinimizeMaxTimeSeconds)
+			util.Log.Info("Stopping `Minimize()`: Maximum time reached ( MinimizeMaxTimeSeconds= %vs )", MinimizeMaxTimeSeconds)
 		}
 		return out
 	}
