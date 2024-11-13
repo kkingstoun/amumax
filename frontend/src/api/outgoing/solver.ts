@@ -6,16 +6,20 @@ export function postSolverType(type: string) {
     post('solver/type', { type });
 }
 
-export function postRun(runtime: number) {
+export function postRun(runtime: string) {
     post('solver/run', { runtime });
 }
 
-export function postSteps(steps: number) {
+export function postSteps(steps: string) {
     post('solver/steps', { steps });
 }
 
 export function postRelax() {
     post('solver/relax', {});
+}
+
+export function postMinimize() {
+    post('solver/minimize', {});
 }
 
 export function postBreak() {

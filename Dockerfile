@@ -12,12 +12,13 @@ ENV PATH /usr/local/go/bin:$PATH
 
 WORKDIR /src
 
-# needed to build ptx
-ENV CGO_CFLAGS="-I/usr/local/cuda/include/" 
+ENV GOPATH=/src/.go/path
+ENV GOCACHE=/src/.go/cache
+ENV CGO_CFLAGS="-I/usr/local/cuda/include/"  
 ENV CGO_LDFLAGS="-lcufft -lcuda -lcurand -L/usr/local/cuda/lib64/stubs/ -Wl,-rpath -Wl,\$ORIGIN" 
 ENV CGO_CFLAGS_ALLOW='(-fno-schedule-insns|-malign-double|-ffast-math)'
 
 RUN git config --global --add safe.directory /src
 CMD go build -v \
-    -ldflags "-X github.com/MathieuMoalic/amumax/engine.VERSION=$(date -u +'%Y.%m.%d')" \
+    -ldflags "-X github.com/MathieuMoalic/amumax/src/engine.VERSION=$(date -u +'%Y.%m.%d')" \
     -o build/amumax

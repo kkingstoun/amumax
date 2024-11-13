@@ -11,6 +11,7 @@ import { get, writable } from 'svelte/store';
 import { preview3D } from '$lib/preview/preview3D';
 import { preview2D } from '$lib/preview/preview2D';
 import { plotTable } from '$lib/table-plot/table-plot';
+import { metricsState } from './incoming/metrics';
 
 export let connected = writable(false);
 
@@ -19,23 +20,25 @@ export function initializeWebSocket() {
 	let ws: WebSocket | null = null;
 
 	function connect() {
-		// ws = new WebSocket(`http://localhost:35367/ws`);
-		ws = new WebSocket(`/ws`);
+		let wsUrl = '/ws';
+		console.debug('Connecting to WebSocket server at', wsUrl);
+		ws = new WebSocket(wsUrl);
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = function () {
+			console.debug('WebSocket connection established');
 			connected.set(true);
-			console.log('WebSocket connection established');
 		};
 
 		ws.onmessage = function (event) {
 			parseMsgpack(event.data);
 			ws?.send('ok');
+			connected.set(true);
 		};
 
 		ws.onclose = function () {
 			connected.set(false);
-			console.log(
+			console.debug(
 				'WebSocket closed. Attempting to reconnect in ' + retryInterval / 1000 + ' seconds...'
 			);
 			ws = null; // Ensure ws is set to null when it is closed
@@ -51,7 +54,7 @@ export function initializeWebSocket() {
 	}
 
 	function tryConnect() {
-		console.log('Attempting WebSocket connection...');
+		console.debug('Attempting WebSocket connection...');
 		try {
 			connect();
 		} catch (err) {
@@ -89,4 +92,6 @@ export function parseMsgpack(data: ArrayBuffer) {
 	} else {
 		preview2D();
 	}
+
+	metricsState.set(msg.metrics);
 }

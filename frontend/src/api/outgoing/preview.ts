@@ -10,12 +10,15 @@ export function postQuantity(quantity: string) {
 	post('preview/quantity', { quantity });
 }
 
-export function postLayer() {
-	post('preview/layer', { layer: get(previewState).layer });
+export function postLayer(layer: number) {
+	post('preview/layer', { layer });
 }
 
-export function postMaxPoints(maxPoints: string) {
-	post('preview/maxpoints', { maxPoints });
+export function postXChosenSize(xChosenSize: number) {
+	post('preview/XChosenSize', { xChosenSize });
+}
+export function postYChosenSize(yChosenSize: number) {
+	post('preview/YChosenSize', { yChosenSize });
 }
 
 export function postRefresh() {

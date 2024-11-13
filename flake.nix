@@ -58,8 +58,8 @@
         buildInputs = basepkgs ++ [pkgs.addDriverRunpath];
 
         buildPhase = ''
-          cp -r ${frontend} api/static
-          go build -v -o $out/bin/amumax -ldflags '-s -w -X github.com/MathieuMoalic/amumax/engine.VERSION=${version}' .
+          cp -r ${frontend} src/api/static
+          go build -v -o $out/bin/amumax -ldflags '-s -w -X github.com/MathieuMoalic/amumax/src/engine.VERSION=${version}' .
         '';
 
         doCheck = false;
@@ -74,37 +74,40 @@
 
     GitFrontend = buildFrontend {
       src = ./frontend;
-      npmDepsHash = "sha256-GmH3iB4JrJ1bOAeUF5Ii+VIaaQeHBwmbfjPX/7pTK4Q=";
+      npmDepsHash = "sha256-5idkZEwNyu6hStsMSupOE1HV6C1cYrylEWCCqRx60Bc=";
       version = gitVersion;
     };
-
-    GitBuildAmumax = buildAmumax {
-      src = ./.;
-      frontend = GitFrontend;
-      vendorHash = "sha256-6lcGHrtXwokEaJq+4tmNxVCTVf8Dz2++PStKQMyQeCk=";
-      version = gitVersion;
-    };
+    GitBuildAmumax = with pkgs.lib.fileset;
+      buildAmumax {
+        src = toSource {
+          root = ./.;
+          fileset = unions [./src ./go.mod ./go.sum ./main.go];
+        };
+        frontend = GitFrontend;
+        vendorHash = "sha256-jIbgqjhHl3wUerb90Iqm8xQfRI1YPi9R1PpzJpWI0gQ=";
+        version = gitVersion;
+      };
 
     #################### RELEASE ########################
-    releaseVersion = "2024.09.19"; # Set the version for the Release build
+    releaseVersion = "2024.11.08"; # Set the version for the Release build
 
     ReleaseSrc = pkgs.fetchFromGitHub {
       owner = "MathieuMoalic";
       repo = "amumax";
       rev = releaseVersion;
-      hash = "sha256-gSkJeemI43n8/vLlYJEFAr9BXN5Aeb/MOmPwul3EKHw=";
+      hash = "sha256-9uW6tV4Z5O4ZoSKxex5xVj2AlIh2EqeqwvJEXhLYmcQ=";
     };
 
     ReleaseFrontend = buildFrontend {
       src = "${ReleaseSrc}/frontend";
-      npmDepsHash = "sha256-DJOiaPDiWJEkcon/Lc3TD/5cS5v5ArORnpp7HDEpa4E=";
+      npmDepsHash = "sha256-5idkZEwNyu6hStsMSupOE1HV6C1cYrylEWCCqRx60Bc=";
       version = releaseVersion;
     };
 
     ReleaseBuildAmumax = buildAmumax {
       src = ReleaseSrc;
       frontend = ReleaseFrontend;
-      vendorHash = "sha256-ly7mLulUon9XIztddOtP6VEGJZk6A6xa5rK/pYwAP2A=";
+      vendorHash = "sha256-jIbgqjhHl3wUerb90Iqm8xQfRI1YPi9R1PpzJpWI0gQ=";
       version = releaseVersion;
     };
 
@@ -118,6 +121,15 @@
           pkgs.gopls
           pkgs.golangci-lint
           pkgs.gcc11
+          pkgs.nodejs_22
+          pkgs.nix-prefetch-github
+          pkgs.prefetch-npm-deps
+          pkgs.nix-prefetch
+          pkgs.jq
+          pkgs.podman
+          pkgs.delve
+          pkgs.gomodifytags
+          pkgs.websocat
         ];
 
       LD_LIBRARY_PATH = "${cuda.libcufft}/lib:${cuda.libcurand}/lib:/run/opengl-driver/lib/";
@@ -126,6 +138,8 @@
         export PATH="${pkgs.gcc11}/bin:$PATH"
         export GOPATH=$(pwd)/.go/path
         export GOCACHE=$(pwd)/.go/cache
+        export GOENV=$(pwd)/.go/env
+        export VITE_WS_URL=http://localhost:35367/ws
         mkdir -p $GOPATH $GOCACHE
       '';
     };
