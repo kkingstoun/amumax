@@ -1,4 +1,4 @@
-package entrypoint
+package queue
 
 // File que for distributing multiple input files over GPUs.
 
@@ -12,8 +12,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/MathieuMoalic/amumax/src/api"
 	"github.com/MathieuMoalic/amumax/src/cuda/cu"
+	"github.com/MathieuMoalic/amumax/src/flags"
 	"github.com/MathieuMoalic/amumax/src/log"
+	"github.com/MathieuMoalic/amumax/src/url"
 )
 
 var (
@@ -21,13 +24,20 @@ var (
 	numOK, numFailed atom = 0, 0
 )
 
-func RunQueue(files []string, flags *flagsType) {
+func RunQueue(files []string, flags *flags.FlagsType) {
 	s := NewStateTab(files)
-	s.PrintTo(os.Stdout)
-	addr := fmt.Sprint(flags.webUIQueueHost, ":", flags.webUIQueuePort)
+	host, port, path, err := url.ParseAddrPath(flags.WebUIQueueAddress)
+	log.Log.PanicIfError(err)
+	if path != "" {
+		log.Log.ErrAndExit("Path not supported for queue web UI")
+	}
+	addr, _, err := api.FindAvailablePort(host, port)
+	log.Log.PanicIfError(err)
+	log.Log.Info("Queue web UI at %v", addr)
+	s.printJobList()
 	go s.ListenAndServe(addr)
-	s.Run()
-	fmt.Println(numOK.get(), "OK, ", numFailed.get(), "failed")
+	s.Run(flags)
+	log.Log.Command(fmt.Sprintf("%d OK; %d Failed", numOK.get(), numFailed.get()))
 	os.Exit(int(exitStatus))
 }
 
@@ -80,7 +90,7 @@ func (s *stateTab) Finish(j job) {
 }
 
 // Runs all the jobs in stateTab.
-func (s *stateTab) Run() {
+func (s *stateTab) Run(flags *flags.FlagsType) {
 	nGPU := cu.DeviceGetCount()
 	idle := initGPUs(nGPU)
 	for {
@@ -91,7 +101,7 @@ func (s *stateTab) Run() {
 			break
 		}
 		go func() {
-			run(j.inFile, gpu)
+			run(j.inFile, gpu, flags)
 			s.Finish(j)
 			idle <- gpu
 		}()
@@ -107,15 +117,70 @@ type atom int32
 func (a *atom) get() int { return int(atomic.LoadInt32((*int32)(a))) }
 func (a *atom) inc()     { atomic.AddInt32((*int32)(a), 1) }
 
-func run(inFile string, gpu int) {
-	fmt.Println("Running", inFile, "on GPU", gpu)
-	err := exec.Command(os.Args[0], "-g", fmt.Sprint(gpu), inFile).Run()
+func run(inFile string, gpu int, flags *flags.FlagsType) {
+	// invalid flags: Version, Update, Gpu, Interactive, OutputDir, SelfTest
+	// add all of the other flags to the command line
+	cmd := []string{os.Args[0]}
+
+	// Add valid flags to the command line
+	if flags.Debug {
+		cmd = append(cmd, "--debug")
+	}
+	if flags.Vet {
+		cmd = append(cmd, "--vet")
+	}
+	if flags.CacheDir != fmt.Sprintf("%v/amumax_kernels", os.TempDir()) {
+		cmd = append(cmd, "--cache", flags.CacheDir)
+	}
+	if flags.Silent {
+		cmd = append(cmd, "--silent")
+	}
+	if flags.Sync {
+		cmd = append(cmd, "--sync")
+	}
+	if flags.ForceClean {
+		cmd = append(cmd, "--force-clean")
+	}
+	if flags.SkipExists {
+		cmd = append(cmd, "--skip-exist")
+	}
+	if flags.HideProgressBar {
+		cmd = append(cmd, "--hide-progress-bar")
+	}
+	if flags.Tunnel != "" {
+		cmd = append(cmd, "--tunnel", flags.Tunnel)
+	}
+	if flags.Insecure {
+		cmd = append(cmd, "--insecure")
+	}
+	if flags.NewParser {
+		cmd = append(cmd, "--new-parser")
+	}
+	if flags.WebUIDisabled {
+		cmd = append(cmd, "--webui-disable")
+	}
+	if flags.WebUIAddress != "localhost:35367" {
+		cmd = append(cmd, "--webui-addr", flags.WebUIAddress)
+	}
+	// GPU and Input File
+	cmd = append(cmd, "--gpu", fmt.Sprintf("%d", gpu), inFile)
+
+	// cmd := []string{os.Args[0], "-g", fmt.Sprint(gpu), inFile}
+	// log.Log.Command(fmt.Sprintf("Running %s on GPU %d", inFile, gpu))
+	// concat all the flags and the input file
+	cmdString := ""
+	for _, c := range cmd {
+		cmdString += c + " "
+	}
+	log.Log.Command(fmt.Sprintf("Running %s", cmdString))
+	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	if err != nil {
-		fmt.Println("failed", inFile, "on GPU", gpu, ":", err)
+		log.Log.Command(fmt.Sprintf("FAILED %s on GPU %d: %v", inFile, gpu, err))
 		exitStatus = 1
 		numFailed.inc()
 		return
 	}
+	log.Log.Command(fmt.Sprintf("DONE %s on GPU %d", inFile, gpu))
 	numOK.inc()
 }
 
@@ -130,12 +195,14 @@ func initGPUs(nGpu int) chan int {
 	return idle
 }
 
-func (s *stateTab) PrintTo(w io.Writer) {
+func (s *stateTab) printJobList() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	log.Log.Command("Job list:")
 	for i, j := range s.jobs {
-		fmt.Fprintf(w, "%3d %v %v\n", i, j.inFile, j.webAddr)
+		log.Log.Command(fmt.Sprintf("%3d %v %v", i, j.inFile, j.webAddr))
 	}
+	log.Log.Command("Starting ...")
 }
 
 func GetLocalIP() string {

@@ -6,6 +6,7 @@ import (
 	"github.com/MathieuMoalic/amumax/src/cuda"
 	"github.com/MathieuMoalic/amumax/src/data"
 	"github.com/MathieuMoalic/amumax/src/log"
+	"github.com/MathieuMoalic/amumax/src/mesh"
 )
 
 func init() {
@@ -60,10 +61,6 @@ func (g *geom) average() []float64 {
 }
 
 func (g *geom) Average() float64 { return g.average()[0] }
-
-func setGeom(s shape) {
-	Geometry.setGeom(s)
-}
 
 func (geometry *geom) setGeom(s shape) {
 	setBusy(true)
@@ -141,7 +138,7 @@ func (geometry *geom) setGeom(s shape) {
 	// M inside geom but previously outside needs to be re-inited
 	needupload := false
 	geomlist := host.Host()[0]
-	mhost := normMag.Buffer().HostCopy()
+	mhost := NormMag.Buffer().HostCopy()
 	m := mhost.Host()
 	rng := rand.New(rand.NewSource(0))
 	for i := range m[0] {
@@ -155,10 +152,10 @@ func (geometry *geom) setGeom(s shape) {
 		}
 	}
 	if needupload {
-		data.Copy(normMag.Buffer(), mhost)
+		data.Copy(NormMag.Buffer(), mhost)
 	}
 
-	normMag.normalize() // removes m outside vol
+	NormMag.normalize() // removes m outside vol
 }
 
 // Sample edgeSmooth^3 points inside the cell to estimate its volume.
@@ -269,4 +266,4 @@ func shiftDirtyRange(dx int) (x1, x2 int) {
 	return
 }
 
-func (g *geom) Mesh() *data.MeshType { return GetMesh() }
+func (g *geom) Mesh() *mesh.Mesh { return GetMesh() }
