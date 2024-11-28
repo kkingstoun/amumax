@@ -8,11 +8,11 @@ import (
 
 	"github.com/DataDog/zstd"
 	"github.com/MathieuMoalic/amumax/src/data"
-	"github.com/MathieuMoalic/amumax/src/fsutil"
-	"github.com/MathieuMoalic/amumax/src/log"
+	"github.com/MathieuMoalic/amumax/src/fsutil_old"
+	"github.com/MathieuMoalic/amumax/src/log_old"
 	"github.com/MathieuMoalic/amumax/src/progressbar"
 	"github.com/MathieuMoalic/amumax/src/timer"
-	"github.com/MathieuMoalic/amumax/src/zarr"
+	"github.com/MathieuMoalic/amumax/src/zarr_old"
 )
 
 // Obtains the demag kernel either from cacheDir/ or by calculating (and then storing in cacheDir for next time).
@@ -27,41 +27,41 @@ func DemagKernel(gridsize, pbc [3]int, cellsize [3]float64, accuracy float64, ca
 	sanityCheck(cellsize)
 	// Cache disabled
 	if cacheDir == "" {
-		log.Log.Warn(`Kernel cache disabled.`)
+		log_old.Log.Warn(`Kernel cache disabled.`)
 		kernel = calcDemagKernel(gridsize, pbc, cellsize, accuracy, hideProgressBar)
 		// return without saving
 		return
 	}
 	// Make sure cache directory exists
-	if !fsutil.Exists(cacheDir) {
-		err := fsutil.Mkdir(cacheDir)
+	if !fsutil_old.Exists(cacheDir) {
+		err := fsutil_old.Mkdir(cacheDir)
 		if err != nil {
-			log.Log.Warn("Unable to create kernel cache directory: %v", err)
+			log_old.Log.Warn("Unable to create kernel cache directory: %v", err)
 		}
 	}
 	defer func() {
 		if err := recover(); err != nil {
-			log.Log.Warn("Unable to use kernel cache: %v", err)
+			log_old.Log.Warn("Unable to use kernel cache: %v", err)
 			kernel = calcDemagKernel(gridsize, pbc, cellsize, accuracy, hideProgressBar)
 		}
 	}()
 
 	basename := kernelName(gridsize, pbc, cellsize, accuracy, cacheDir)
-	if fsutil.Exists(basename) {
-		log.Log.Info("Loading kernel from cache")
+	if fsutil_old.Exists(basename) {
+		log_old.Log.Info("Loading kernel from cache")
 		var err error
 		kernel, err = loadKernel(basename, padSize(gridsize, pbc))
 		if err != nil {
-			log.Log.Warn("Couldn't load kernel from cache: %v", err)
+			log_old.Log.Warn("Couldn't load kernel from cache: %v", err)
 			kernel = calcDemagKernel(gridsize, pbc, cellsize, accuracy, hideProgressBar)
 		}
 		return kernel
 	} else {
-		log.Log.Info("Calculating kernel and saving to cache")
+		log_old.Log.Info("Calculating kernel and saving to cache")
 		kernel = calcDemagKernel(gridsize, pbc, cellsize, accuracy, hideProgressBar)
 		err := saveKernel(basename, kernel)
 		if err != nil {
-			log.Log.Warn("Couldn't save kernel to cache: %v \n %v", basename, err.Error())
+			log_old.Log.Warn("Couldn't save kernel to cache: %v \n %v", basename, err.Error())
 		}
 		return
 	}
@@ -108,7 +108,7 @@ func sliceToBytes(slice *data.Slice) (bytes []byte) {
 	for iz := 0; iz < size[Z]; iz++ {
 		for iy := 0; iy < size[Y]; iy++ {
 			for ix := 0; ix < size[X]; ix++ {
-				bytes = append(bytes, zarr.Float32ToBytes(data[0][iz][iy][ix])...)
+				bytes = append(bytes, zarr_old.Float32ToBytes(data[0][iz][iy][ix])...)
 			}
 		}
 	}
@@ -122,7 +122,7 @@ func bytesToSlice(kernelBytes []byte, size [3]int) (slice *data.Slice) {
 	for iz := 0; iz < size[Z]; iz++ {
 		for iy := 0; iy < size[Y]; iy++ {
 			for ix := 0; ix < size[X]; ix++ {
-				tensors[0][iz][iy][ix] = zarr.BytesToFloat32(kernelBytes[count*4 : (count+1)*4])
+				tensors[0][iz][iy][ix] = zarr_old.BytesToFloat32(kernelBytes[count*4 : (count+1)*4])
 				count++
 			}
 		}
@@ -138,7 +138,7 @@ func kernelName(gridsize, pbc [3]int, cellsize [3]float64, accuracy float64, cac
 }
 
 func loadKernel(fname string, size [3]int) ([3][3]*data.Slice, error) {
-	compressedData, err := fsutil.Read(fname)
+	compressedData, err := fsutil_old.Read(fname)
 	if err != nil {
 		return [3][3]*data.Slice{}, err
 	}
@@ -176,10 +176,10 @@ func calcDemagKernel(gridsize, pbc [3]int, cellsize [3]float64, accuracy float64
 
 	// Sanity check
 	{
-		log.AssertMsg(size[Z] > 0 && size[Y] > 0 && size[X] > 0, "Grid size dimensions must be greater than 0 in calcDemagKernel")
-		log.AssertMsg(cellsize[X] > 0 && cellsize[Y] > 0 && cellsize[Z] > 0, "Cell size dimensions must be positive in calcDemagKernel")
-		log.AssertMsg(pbc[X] >= 0 && pbc[Y] >= 0 && pbc[Z] >= 0, "PBC values must be non-negative in calcDemagKernel")
-		log.AssertMsg(accuracy > 0, "Accuracy must be greater than 0 in calcDemagKernel")
+		log_old.AssertMsg(size[Z] > 0 && size[Y] > 0 && size[X] > 0, "Grid size dimensions must be greater than 0 in calcDemagKernel")
+		log_old.AssertMsg(cellsize[X] > 0 && cellsize[Y] > 0 && cellsize[Z] > 0, "Cell size dimensions must be positive in calcDemagKernel")
+		log_old.AssertMsg(pbc[X] >= 0 && pbc[Y] >= 0 && pbc[Z] >= 0, "PBC values must be non-negative in calcDemagKernel")
+		log_old.AssertMsg(accuracy > 0, "Accuracy must be greater than 0 in calcDemagKernel")
 	}
 
 	// Allocate only upper diagonal part. The rest is symmetric due to reciprocity.
@@ -271,7 +271,7 @@ func calcDemagKernel(gridsize, pbc [3]int, cellsize [3]float64, accuracy float64
 						nv *= 2
 						nw *= 2
 
-						log.AssertMsg(nv > 0 && nw > 0 && nx > 0 && ny > 0 && nz > 0, "Integration points must be greater than 0 in all dimensions (nv, nw, nx, ny, nz) in calcDemagKernel")
+						log_old.AssertMsg(nv > 0 && nw > 0 && nx > 0 && ny > 0 && nz > 0, "Integration points must be greater than 0 in all dimensions (nv, nw, nx, ny, nz) in calcDemagKernel")
 
 						scale := 1 / float64(nv*nw*nx*ny*nz)
 						surface := cellsize[v] * cellsize[w] // the two directions perpendicular to direction s
@@ -450,7 +450,7 @@ func sanityCheck(cellsize [3]float64) {
 	aMin := math.Min(a1, math.Min(a2, a3))
 
 	if aMax > maxAspect || aMin < 1./maxAspect {
-		log.Log.PanicIfError(fmt.Errorf("unrealistic cell aspect ratio %v", cellsize))
+		log_old.Log.PanicIfError(fmt.Errorf("unrealistic cell aspect ratio %v", cellsize))
 	}
 }
 
